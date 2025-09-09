@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Shazam-like MVP</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+    button { padding: 10px 16px; }
+    #status { margin-top: 12px; }
+    #result { white-space: pre-wrap; background: #f6f8fa; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Shazam-like MVP</h1>
+  <button id="recordBtn">Start 8s Recording</button>
+  <div id="status"></div>
+  <h3>Result</h3>
+  <div id="result"></div>
+
+  <script>
+    const recordBtn = document.getElementById('recordBtn');
+    const statusDiv = document.getElementById('status');
+    const resultDiv = document.getElementById('result');
+
+    async function recordAndSend() {
+      resultDiv.textContent = "";
+      statusDiv.textContent = "Requesting microphone...";
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      const recorder = new MediaRecorder(stream);
+
+      recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+      recorder.onstop = async () => {
+        statusDiv.textContent = "Uploading...";
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const form = new FormData();
+        form.append('file', blob, 'clip.webm');
+        try {
+          const resp = await fetch('http://127.0.0.1:8000/identify', { method: 'POST', body: form });
+          const json = await resp.json();
+          resultDiv.textContent = JSON.stringify(json, null, 2);
+          statusDiv.textContent = "Done.";
+        } catch (e) {
+          resultDiv.textContent = "Error: " + e.message;
+          statusDiv.textContent = "Failed.";
+        } finally {
+          stream.getTracks().forEach(t => t.stop());
+        }
+      };
+
+      recorder.start();
+      statusDiv.textContent = "Recording 8s...";
+      setTimeout(() => recorder.stop(), 8000);
+    }
+
+    recordBtn.addEventListener('click', recordAndSend);
+  </script>
+</body>
+</html>
